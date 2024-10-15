@@ -1,0 +1,41 @@
+services:
+  master:
+    build:
+      context: ./master
+    ports:
+      - "5010:5010"  # Expose port
+    depends_on: # for future if I do autodiscovery so that replicas start first
+      - replica_1 # maybe add conditions
+      - replica_2
+    volumes:
+      - shared_data:/app/shared_data  # Mount shared volume
+    networks:
+      - my_network
+
+  replica_1:
+    build:
+      context: ./replica_1
+    ports:
+      - "8050:8050"
+    volumes:
+      - shared_data:/app/shared_data
+    networks:
+      - my_network
+
+  replica_2:
+    build:
+      context: ./replica_2
+    ports:
+      - "8080:8080"
+    volumes:
+      - shared_data:/app/shared_data
+    networks:
+      - my_network
+
+volumes:
+  shared_data:
+    driver: local
+
+networks:
+  my_network:
+    driver: bridge
