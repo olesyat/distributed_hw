@@ -1,0 +1,21 @@
+2024-10-15 11:00:19,267 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5010
+ * Running on http://172.19.0.4:5010
+2024-10-15 11:00:19,267 - INFO - [33mPress CTRL+C to quit[0m
+2024-10-15 11:00:35,700 - INFO - Received POST request with data on master: {'message': 'Hello, world!'}
+2024-10-15 11:00:35,700 - INFO - Message 'Hello, world!' added to master with ID: 0
+2024-10-15 11:00:35,783 - INFO - HTTP Request: POST http://replica_1:8050/messages "HTTP/1.1 201 CREATED"
+2024-10-15 11:00:35,784 - INFO - Message forwarded successfully to the secondary server
+2024-10-15 11:00:36,944 - INFO - Received POST request with data on master: {'message': 'Hello, world 2!'}
+2024-10-15 11:00:36,945 - INFO - Message 'Hello, world 2!' added to master with ID: 1
+2024-10-15 11:00:37,003 - INFO - HTTP Request: POST http://replica_1:8050/messages "HTTP/1.1 201 CREATED"
+2024-10-15 11:00:37,003 - INFO - Message forwarded successfully to the secondary server
+2024-10-15 11:00:38,785 - INFO - HTTP Request: POST http://replica_2:8080/messages "HTTP/1.1 201 CREATED"
+2024-10-15 11:00:38,786 - INFO - Message forwarded successfully to the secondary server
+2024-10-15 11:00:38,786 - INFO - Message 'Hello, world!' added to ALL replicas with ID: 0
+2024-10-15 11:00:38,788 - INFO - 192.168.65.1 - - [15/Oct/2024 11:00:38] "[35m[1mPOST /messages HTTP/1.1[0m" 201 -
+2024-10-15 11:00:40,013 - INFO - HTTP Request: POST http://replica_2:8080/messages "HTTP/1.1 201 CREATED"
+2024-10-15 11:00:40,014 - INFO - Message forwarded successfully to the secondary server
+2024-10-15 11:00:40,014 - INFO - Message 'Hello, world 2!' added to ALL replicas with ID: 1
+2024-10-15 11:00:40,015 - INFO - 192.168.65.1 - - [15/Oct/2024 11:00:40] "[35m[1mPOST /messages HTTP/1.1[0m" 201 -
