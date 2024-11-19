@@ -1,0 +1,11 @@
+2024-10-15 11:00:19,173 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8050
+ * Running on http://172.19.0.2:8050
+2024-10-15 11:00:19,173 - INFO - [33mPress CTRL+C to quit[0m
+2024-10-15 11:00:35,782 - INFO - Received POST request on replica1 from 172.19.0.4 with data: {'message': 'Hello, world!', 'message_id': '0'}
+2024-10-15 11:00:35,782 - INFO - Message Hello, world! added to replica1  with ID: 0
+2024-10-15 11:00:35,783 - INFO - 172.19.0.4 - - [15/Oct/2024 11:00:35] "[35m[1mPOST /messages HTTP/1.1[0m" 201 -
+2024-10-15 11:00:37,002 - INFO - Received POST request on replica1 from 172.19.0.4 with data: {'message': 'Hello, world 2!', 'message_id': '1'}
+2024-10-15 11:00:37,002 - INFO - Message Hello, world 2! added to replica1  with ID: 1
+2024-10-15 11:00:37,003 - INFO - 172.19.0.4 - - [15/Oct/2024 11:00:37] "[35m[1mPOST /messages HTTP/1.1[0m" 201 -
