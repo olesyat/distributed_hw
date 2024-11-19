@@ -1,22 +1,22 @@
 import logging
 from flask import Flask, request, jsonify
 import asyncio
-from utils import post_to_replica
+import itertools
+from utils import post_to_replica, return_confirmation_to_user, replicate_to_pending_replicas, total_ordering
 
 app = Flask(__name__)
 
 # Configure logging to a file
 logging.basicConfig(
     filename='/app/shared_data/server.log',
-    filemode='w',  # rewrite with each restart
+    filemode='w',
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-# In-memory list to store messages and incremental id
 messages = {}
-id_counter = 0
-REPLICA_TIMEOUT = 20
+id_counter = itertools.count()
+REPLICA_TIMEOUT = 20  # max Timeout in seconds for replica response
 
 @app.route('/messages', methods=['POST'])
 async def add_message():
@@ -28,47 +28,57 @@ async def add_message():
 
     # Validate the incoming data
     if not data or 'message' not in data:
-        m_failure = "Invalid request missing 'message' or 'message_id'"
-        logging.error(m_failure)
-        return jsonify({"error": m_failure}), 400
+        return jsonify({"error": "Invalid request"}), 400
 
-    message_id = str(id_counter)
+    concern = data.get('concern', 3)
+    message_id = str(next(id_counter))
     messages[message_id] = data['message']
-    id_counter += 1
 
-    logging.info("Message '%s' added to master with ID: %s", data['message'], message_id)
+    logging.info(f"Message '{data['message']}' added to master with ID: {message_id}")
+    confirmations_received = 1
 
+    replica_urls = [
+        'http://replica_1:8050/messages',
+        'http://replica_2:8080/messages'
+    ]
 
-    # assume we know replicas urls upfront
+    confirmation_tasks = [
+        asyncio.create_task(post_to_replica(url, data, message_id)) for url in replica_urls
+    ]
+
     try:
-        replica1_url = 'http://replica_1:8050/messages'
-        replica2_url = 'http://replica_2:8080/messages'
-        results = await asyncio.gather(
-            asyncio.wait_for(post_to_replica(replica1_url, data, message_id), REPLICA_TIMEOUT),
-            asyncio.wait_for(post_to_replica(replica2_url, data, message_id), REPLICA_TIMEOUT),
-            # return_exceptions=True
-        )
+        # Await confirmations but return as soon as the concern level is met
+        for task in asyncio.as_completed(confirmation_tasks, timeout=REPLICA_TIMEOUT):
+            try:
+                confirmation = await task
+                if confirmation[1] == 201:
+                    confirmations_received += 1
 
-        responses_status_codes = [x[1] for x in results]
-        if any(status_code != 201 for status_code in responses_status_codes):
-            m_failure2 = 'Failed to add message to one or more replicas.'
-            logging.error(m_failure2)
-            return jsonify({"error": m_failure2}), 500
-        else:
-            m = f"Message '{data['message']}' added to ALL replicas with ID: {message_id}"
-            logging.info(m)
-            return jsonify({"message": m}), 201
+                if confirmations_received >= concern:
+                    response = return_confirmation_to_user(message_id, concern)
+
+                    # background replication for pending replicas if any
+                    pending_replicas = [url for url, t in zip(replica_urls, confirmation_tasks) if not t.done()]
+                    if pending_replicas:
+                        asyncio.create_task(replicate_to_pending_replicas(message_id, data, pending_replicas))
+                    return response
+
+            except asyncio.TimeoutError:
+                logging.warning("Replica timed out")
 
     except Exception as e:
-        m_error = f"Error during replication: {e}"
-        logging.error(m_error)
-        return jsonify({"error": m_error}), 500
+        logging.error(f"Error during replication: {e}")
+
+    return jsonify({"message": "Replication initiated", "id": message_id}), 202  # if not met concern
 
 
 @app.route('/messages', methods=['GET'])
 def get_messages():
     logging.info("Received GET request for messages from master")
-    return jsonify({"messages": messages}), 200
+    contiguous_messages, last_message_id = total_ordering(messages)
+    logging.info(
+        f"Returning {len(contiguous_messages)} messages up to the last contiguous sequence (ID: {last_message_id})")
+    return jsonify({"messages": contiguous_messages}), 200
 
 
 if __name__ == '__main__':
