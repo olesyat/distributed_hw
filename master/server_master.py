@@ -2,7 +2,8 @@ import logging
 from flask import Flask, request, jsonify
 import asyncio
 import itertools
-from utils import post_to_replica, return_confirmation_to_user, replicate_to_pending_replicas, total_ordering
+from utils import post_to_replica, return_confirmation_to_user, total_ordering, run_in_thread
+import threading
 
 app = Flask(__name__)
 
@@ -16,7 +17,7 @@ logging.basicConfig(
 
 messages = {}
 id_counter = itertools.count()
-REPLICA_TIMEOUT = 20  # max Timeout in seconds for replica response
+REPLICA_TIMEOUT = 30  # max Timeout in seconds for replica response
 
 @app.route('/messages', methods=['POST'])
 async def add_message():
@@ -30,37 +31,47 @@ async def add_message():
     if not data or 'message' not in data:
         return jsonify({"error": "Invalid request"}), 400
 
+    # Record the message in the master
     concern = data.get('concern', 3)
     message_id = str(next(id_counter))
     messages[message_id] = data['message']
-
     logging.info(f"Message '{data['message']}' added to master with ID: {message_id}")
-    confirmations_received = 1
 
+
+    # For concern > 1, process replica confirmations
+    confirmations_received = 1  # Already confirmed by the master
     replica_urls = [
         'http://replica_1:8050/messages',
         'http://replica_2:8080/messages'
     ]
-
     confirmation_tasks = [
         asyncio.create_task(post_to_replica(url, data, message_id)) for url in replica_urls
     ]
 
+    # Confirm to user immediately if concern level is 1
+    if confirmations_received >= concern:
+        response = return_confirmation_to_user(message_id, concern)
+        # Schedule replication tasks in the background
+        pending_replicas = [url for url, t in zip(replica_urls, confirmation_tasks) if not t.done()]
+        thread = threading.Thread(target=run_in_thread, args=(message_id, data, pending_replicas))
+        thread.start()
+        return response
+
     try:
-        # Await confirmations but return as soon as the concern level is met
+        # Await confirmations up to the concern level
         for task in asyncio.as_completed(confirmation_tasks, timeout=REPLICA_TIMEOUT):
             try:
+                # logging.info(f'awaiting task {task}')
                 confirmation = await task
+                # logging.info(f'conf {confirmation}')
                 if confirmation[1] == 201:
                     confirmations_received += 1
-
                 if confirmations_received >= concern:
                     response = return_confirmation_to_user(message_id, concern)
-
-                    # background replication for pending replicas if any
+                    # User concern met; schedule remaining replication in the background
                     pending_replicas = [url for url, t in zip(replica_urls, confirmation_tasks) if not t.done()]
-                    if pending_replicas:
-                        asyncio.create_task(replicate_to_pending_replicas(message_id, data, pending_replicas))
+                    thread = threading.Thread(target=run_in_thread, args=(message_id, data, pending_replicas))
+                    thread.start()
                     return response
 
             except asyncio.TimeoutError:
@@ -69,8 +80,7 @@ async def add_message():
     except Exception as e:
         logging.error(f"Error during replication: {e}")
 
-    return jsonify({"message": "Replication initiated", "id": message_id}), 202  # if not met concern
-
+    return jsonify({"message": "Replication initiated", "id": message_id}), 202
 
 @app.route('/messages', methods=['GET'])
 def get_messages():

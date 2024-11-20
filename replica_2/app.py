@@ -1,6 +1,7 @@
 import logging
 from flask import Flask, request, jsonify
 from utils import total_ordering
+import asyncio
 
 app = Flask(__name__)
 
@@ -20,8 +21,9 @@ async def add_message():
     global REPLICA
     data = request.get_json()
     client_ip = request.remote_addr # get client ip
-    logging.info(f"Received POST request on replica{REPLICA} from %s with data: %s", client_ip, data)
 
+    logging.info(f"Received POST request on replica{REPLICA} from %s with data: %s", client_ip, data)
+    await asyncio.sleep(2)
     # Validate the incoming data
     if not data or 'message' not in data or 'message_id' not in data:
         m_failure = f"Invalid request missing 'message' or 'message_id'"
