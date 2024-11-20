@@ -21,9 +21,9 @@ async def add_message():
     global REPLICA
     data = request.get_json()
     client_ip = request.remote_addr # get client ip
-    await asyncio.sleep(10)
-    logging.info(f"Received POST request on replica{REPLICA} from %s with data: %s", client_ip, data)
 
+    logging.info(f"Received POST request on replica{REPLICA} from %s with data: %s", client_ip, data)
+    await asyncio.sleep(10)
     # Validate the incoming data
     if not data or 'message' not in data or 'message_id' not in data:
         m_failure = "Invalid request missing 'message' or 'message_id'"
